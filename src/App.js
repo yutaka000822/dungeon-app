@@ -1,7 +1,5 @@
 import heroImg from "./hero.jpg";
-import { useState } from "react";
-
-const MONSTER = { name: "鬼", maxHp: 35, attack: 10, emoji: "👹" };
+import { useState, useEffect } from "react";
 
 const CARDS = [
   { id: 1, name: "斬撃", cost: 1, damage: 8, type: "attack", desc: "敵に8ダメージ" },
@@ -11,12 +9,38 @@ const CARDS = [
 ];
 
 function App() {
-  const [monsterHp, setMonsterHp] = useState(MONSTER.maxHp);
+  // FastAPIから取得したモンスターを入れる箱
+  const [monster, setMonster] = useState(null);
+  const [monsterHp, setMonsterHp] = useState(0);
   const [playerHp, setPlayerHp] = useState(50);
   const [block, setBlock] = useState(0);
   const [energy, setEnergy] = useState(3);
-  const [log, setLog] = useState(["⚔️ 鬼が現れた！"]);
+  const [log, setLog] = useState([]);
   const [gameOver, setGameOver] = useState(false);
+
+  // 画面が開いたらFastAPIからモンスターを取得する
+  useEffect(() => {
+    fetch("http://localhost:8000/api/enemies")
+      .then((res) => res.json())
+      .then((data) => {
+        // ランダムで1体選ぶ
+        const random = data[Math.floor(Math.random() * data.length)];
+        setMonster(random);
+        setMonsterHp(random.hp);
+        setLog([`⚔️ ${random.name}が現れた！`]);
+      });
+  }, []);
+
+  // モンスターが読み込まれるまでローディング表示
+  if (!monster) return (
+    <div style={{
+      backgroundColor: "#0d0d1a", minHeight: "100vh",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      color: "#c9a84c", fontSize: "1.5rem"
+    }}>
+      ⚔️ モンスターを召喚中...
+    </div>
+  );
 
   const addLog = (msg) => setLog((prev) => [msg, ...prev]);
 
@@ -27,7 +51,7 @@ function App() {
     if (card.damage) {
       const newHp = Math.max(0, monsterHp - card.damage);
       setMonsterHp(newHp);
-      addLog(`💥 ${card.name}！鬼に${card.damage}ダメージ！`);
+      addLog(`💥 ${card.name}！${monster.name}に${card.damage}ダメージ！`);
       if (newHp <= 0) { addLog("🎉 勝利！"); setGameOver(true); return; }
     }
     if (card.block) {
@@ -42,25 +66,31 @@ function App() {
 
   const endTurn = () => {
     if (gameOver) return;
-    const dmg = Math.max(0, MONSTER.attack - block);
+    const dmg = Math.max(0, monster.attack - block);
     const newHp = Math.max(0, playerHp - dmg);
     setPlayerHp(newHp);
     setBlock(0);
     setEnergy(3);
-    addLog(`👹 鬼の攻撃！${dmg}ダメージ！`);
+    addLog(`👹 ${monster.name}の攻撃！${dmg}ダメージ！`);
     if (newHp <= 0) { addLog("💀 ゲームオーバー…"); setGameOver(true); }
   };
 
   const reset = () => {
-    setMonsterHp(MONSTER.maxHp);
-    setPlayerHp(50);
-    setBlock(0);
-    setEnergy(3);
-    setLog(["⚔️ 鬼が現れた！"]);
-    setGameOver(false);
+    fetch("http://localhost:8000/api/enemies")
+      .then((res) => res.json())
+      .then((data) => {
+        const random = data[Math.floor(Math.random() * data.length)];
+        setMonster(random);
+        setMonsterHp(random.hp);
+        setLog([`⚔️ ${random.name}が現れた！`]);
+        setPlayerHp(50);
+        setBlock(0);
+        setEnergy(3);
+        setGameOver(false);
+      });
   };
 
-  const monsterHpPct = (monsterHp / MONSTER.maxHp) * 100;
+  const monsterHpPct = (monsterHp / monster.hp) * 100;
   const playerHpPct = (playerHp / 50) * 100;
 
   return (
@@ -94,11 +124,11 @@ function App() {
 
         {/* プレイヤー */}
         <div style={{ textAlign: "center" }}>
-        <img src={heroImg} alt="hero" style={{ 
-  height: "180px", 
-  imageRendering: "pixelated",
-  mixBlendMode: "screen"
-}} />
+          <img src={heroImg} alt="hero" style={{
+            height: "180px",
+            imageRendering: "pixelated",
+            mixBlendMode: "screen"
+          }} />
           <div style={{ fontSize: "0.9rem", marginTop: "8px" }}>あなた</div>
           <div style={{
             width: "120px", backgroundColor: "#222", borderRadius: "4px", height: "10px", marginTop: "6px", overflow: "hidden"
@@ -122,8 +152,8 @@ function App() {
 
         {/* モンスター */}
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "5rem" }}>{MONSTER.emoji}</div>
-          <div style={{ color: "#ff6b6b", marginTop: "8px" }}>{MONSTER.name}</div>
+          <div style={{ fontSize: "5rem" }}>👹</div>
+          <div style={{ color: "#ff6b6b", marginTop: "8px" }}>{monster.name}</div>
           <div style={{
             width: "120px", backgroundColor: "#222", borderRadius: "4px", height: "10px", marginTop: "6px", overflow: "hidden"
           }}>
@@ -133,7 +163,7 @@ function App() {
             }}/>
           </div>
           <div style={{ fontSize: "0.8rem", color: "#aaa", marginTop: "4px" }}>
-            ⚔️ 次のターン: {MONSTER.attack}ダメージ
+            ⚔️ 次のターン: {monster.attack}ダメージ
           </div>
         </div>
       </div>
